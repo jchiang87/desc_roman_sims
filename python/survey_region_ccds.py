@@ -150,11 +150,12 @@ class CcdRegionFactory:
             vertices.append(lsst.sphgeom.UnitVector3d(lonlat))
         return lsst.sphgeom.ConvexPolygon(vertices)
 
-    def draw_focal_plane(self, ax, region=None, color=None):
+    def draw_focal_plane(self, ax, ccds=None, region=None, color=None):
         """
         Draw the selected CCDs on the specified matplotlib axes.
         """
-        ccds = self.select_ccds(region)
+        if ccds is None:
+            ccds = self.select_ccds(region)
         for det_name in ccds:
             polygon = self.create(det_name)
             self.draw_sky_polygon(ax, polygon, color=color)
