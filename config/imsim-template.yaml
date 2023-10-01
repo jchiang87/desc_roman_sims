@@ -1,0 +1,55 @@
+modules: [imsim]
+template: imsim-config-skycat
+
+# Use skyCatalogs for obtaining the objects to render.
+input.sky_catalog:
+  file_name: $os.environ.get("SKYCATALOG_YAML")
+  approx_nobjects: 120000
+  band: { type: OpsimData, field: band }
+  mjd: { type: OpsimData, field: mjd }
+  obj_types: [galaxy, star]
+#  max_flux: 1e7
+
+input.opsim_data.file_name: $os.environ.get("OPSIM_DB_FILE")
+input.opsim_data.visit: None
+
+input.atm_psf.screen_size: 819.2
+input.atm_psf.save_file:
+  type: FormattedStr
+  format: atm_psf_files/atm_psf_%08d-%1d-%s.pkl
+  items:
+      - { type: OpsimData, field: observationId }
+      - { type: OpsimData, field: snap }
+      - { type: OpsimData, field: band }
+
+# disable checkpointing
+#input.checkpoint: ""
+
+#image.nobjects: 10
+image.random_seed: '@input.opsim_data.visit'
+
+output.nproc: 1
+output.det_num.first: 0
+output.nfiles: 1
+
+output.camera: LsstCam
+output.dir:
+    type: FormattedStr
+    format: output/%08d
+    items:
+        - "@input.opsim_data.visit"
+output.timeout: 1e5
+output.truth.dir: '@output.dir'
+output.truth.file_name.format: centroid_%08d-%1d-%s-%s-det%03d.txt.gz
+
+output.process_info:
+    dir: '@output.dir'
+    file_name:
+        type: FormattedStr
+        format: process_info_%08d-%1d-%s-%s-det%03d.txt.gz
+        items:
+            - { type: OpsimData, field: observationId }
+            - { type: OpsimData, field: snap }
+            - "$band"
+            - "$det_name"
+            - "@output.det_num"
