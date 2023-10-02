@@ -1,0 +1,51 @@
+# Start from a release LSST stack image.
+FROM lsstsqre/centos:7-stack-lsst_distrib-w_2023_38
+
+# Information about image.
+ARG BUILD_DATE
+LABEL maintainer="https://github.com/jchiang87/desc_roman_sims"
+LABEL description="A Docker image for Roman-DESC simulations."
+LABEL version="latest"
+LABEL build_date=$BUILD_DATE
+
+WORKDIR /home/lsst
+
+# Clone this repo and the GalSim, skyCatalogs, imSim repos.
+RUN git clone https://github.com/GalSim-developers/GalSim.git &&\
+    git clone https://github.com/LSSTDESC/skyCatalogs.git  &&\
+    git clone https://github.com/LSSTDESC/imSim.git &&\
+    git clone https://github.com/jchiang87/desc_roman_sims
+
+# 1) Install imSim Conda requirements
+# 2) Install GalSim main
+# 3) Install skyCatalogs
+# 4) Install imSim
+RUN source /opt/lsst/software/stack/loadLSST.bash &&\
+    setup lsst_distrib &&\
+    mamba install -y --file desc_roman_sims/etc/conda_requirements.txt &&\
+    cd GalSim &&\
+    git checkout main &&\
+    cd .. &&\
+    python3 -m pip install GalSim/ &&\
+    python3 -m pip install skyCatalogs/ &&\
+    python3 -m pip install imSim/
+
+WORKDIR /opt/lsst/software/stack
+
+# Download Rubin Sim data.
+RUN mkdir -p rubin_sim_data/sims_sed_library
+RUN curl https://s3df.slac.stanford.edu/groups/rubin/static/sim-data/rubin_sim_data/skybrightness_may_2021.tgz | tar -C rubin_sim_data -xz
+RUN curl https://s3df.slac.stanford.edu/groups/rubin/static/sim-data/rubin_sim_data/throughputs_2023_09_07.tgz | tar -C rubin_sim_data -xz
+RUN curl https://s3df.slac.stanford.edu/groups/rubin/static/sim-data/sed_library/seds_170124.tar.gz  | tar -C rubin_sim_data/sims_sed_library -xz
+
+# Set location of Rubin sim data (downloaded in step above).
+ENV RUBIN_SIM_DATA_DIR /opt/lsst/software/stack/rubin_sim_data
+
+# Set location of SED library (downloaded in step above).
+ENV SIMS_SED_LIBRARY_DIR /opt/lsst/software/stack/rubin_sim_data/sims_sed_library
+
+WORKDIR /home/lsst
+
+# Make a script to activate the LSST stack
+RUN echo "source /opt/lsst/software/stack/loadLSST.bash" >> .bashrc &&\
+    echo "setup lsst_distrib" >> .bashrc
