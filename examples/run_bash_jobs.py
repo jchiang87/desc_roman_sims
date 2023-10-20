@@ -1,17 +1,18 @@
+import os
 import parsl
-from desc_roman_sims.parsl.parsl_config import load_parsl_config
+from desc_roman_sims.parsl.parsl_config import load_wq_config
 
-load_parsl_config("local")
-
-
-_COMMANDS = ("ls", "time", "uname", "galsim --version")
+load_wq_config(memory=4000)
 
 
-my_bash_app = parsl.bash_app(executors=['submit-node'],
+_COMMANDS = ("ls", "time", "uname", "galsim --version", "pwd")
+
+
+my_bash_app = parsl.bash_app(executors=['work_queue'],
                              cache=True, ignore_for_cache=['stderr', 'stdout'])
 
 
-class CommandGenerator:
+class BashJobGenerator:
     def __init__(self, commands=_COMMANDS):
         self.commands = commands
         self._counter = 0
@@ -20,7 +21,7 @@ class CommandGenerator:
         if index is None:
             index = self._counter
             self._counter += 1
-        index //= len(self.commands)
+        index %= len(self.commands)
         def bash_command(inputs=(), stderr=stderr, stdout=stdout):
             return self.commands[index]
         bash_command.__name__ = self.commands[index]
@@ -29,13 +30,18 @@ class CommandGenerator:
 
 
 if __name__ == '__main__':
-    generator = CommandGenerator()
+    generator = BashJobGenerator()
     futures = {}
+    log_dir = 'logging'
+    os.makedirs(log_dir, exist_ok=True)
     for index in range(10):
-        outfile = f'output_{index:02d}.log'
-        futures[index] = generator.run_command(index=index, stdout=outfile,
-                                               stderr=outfile)
+        run_name = f'job_{index:02d}'
+        outfile = os.path.join(log_dir, f'{run_name}.log')
+        futures[run_name] = generator.run_command(index=index, stdout=outfile,
+                                                  stderr=outfile)
 
-    all_done = lambda : all(_.done() for _ in futures.values())
+    def status():
+        for func_name, future in futures.items():
+            print(func_name, future.task_status())
 
-    print(all_done())
+    status()
