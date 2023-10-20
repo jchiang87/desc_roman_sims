@@ -1,7 +1,7 @@
 from desc_roman_sims import GalSimJobGenerator
-from desc_roman_sims.parsl.parsl_config import load_parsl_config
+from desc_roman_sims.parsl.parsl_config import load_wq_config
 
-load_parsl_config("local_wq")
+load_wq_config(memory=10000)
 
 imsim_yaml = "/home/jchiang/RomanDESC/imsim-parsl-template.yaml"
 visits = [740000]
