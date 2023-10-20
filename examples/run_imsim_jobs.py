@@ -17,3 +17,5 @@ def status():
         print(func_name, future.task_status())
 
 status()
+
+_ = [_.exception() for _ in futures.values()]
