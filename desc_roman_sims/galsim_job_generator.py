@@ -73,7 +73,7 @@ class GalSimJobGenerator:
         resource_spec = dict(memory=self.GB_per_CCD*1024*self.nproc,
                              cores=1, disk=0)
         def bash_command(inputs=(), stderr=stderr, stdout=stdout,
-                         parsl_resource_specifcation=resource_spec):
+                         parsl_resource_specification=resource_spec):
             return command
         bash_command.__name__ = run_name
 
