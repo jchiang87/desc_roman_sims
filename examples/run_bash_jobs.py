@@ -1,5 +1,5 @@
 import parsl
-from parsl_config import load_parsl_config
+from desc_roman_sims.parsl.parsl_config import load_parsl_config
 
 load_parsl_config("local")
 
