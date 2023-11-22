@@ -29,5 +29,5 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: jchiang87/roman-sims-env:w_2023_38
+          tags: jchiang87/roman-sims-env:w_2023_45
           build-args: BUILD_DATE=${{ env.NOW }}
