@@ -24,7 +24,7 @@ RUN source /opt/lsst/software/stack/loadLSST.bash &&\
     setup lsst_distrib &&\
     mamba install -y --file desc_roman_sims/etc/conda_requirements.txt &&\
     cd GalSim &&\
-    git checkout release/2.5 &&\
+    git checkout releases/2.5 &&\
     cd .. &&\
     python3 -m pip install GalSim/ &&\
     python3 -m pip install skyCatalogs/ &&\
