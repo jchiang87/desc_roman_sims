@@ -1,5 +1,5 @@
 # Start from a release LSST stack image.
-FROM lsstsqre/centos:7-stack-lsst_distrib-w_2023_38
+FROM lsstsqre/centos:7-stack-lsst_distrib-w_2023_45
 
 # Information about image.
 ARG BUILD_DATE
@@ -24,7 +24,7 @@ RUN source /opt/lsst/software/stack/loadLSST.bash &&\
     setup lsst_distrib &&\
     mamba install -y --file desc_roman_sims/etc/conda_requirements.txt &&\
     cd GalSim &&\
-    git checkout main &&\
+    git checkout release/2.5 &&\
     cd .. &&\
     python3 -m pip install GalSim/ &&\
     python3 -m pip install skyCatalogs/ &&\
