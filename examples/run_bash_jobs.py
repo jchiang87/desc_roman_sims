@@ -2,7 +2,8 @@ import os
 import parsl
 from desc_roman_sims.parsl.parsl_config import load_wq_config
 
-load_wq_config(memory=4000)
+
+load_wq_config(memory=4000, monitor=False)
 
 
 _COMMANDS = ("ls", "time", "uname", "galsim --version", "pwd")
@@ -45,3 +46,6 @@ if __name__ == '__main__':
             print(func_name, future.task_status())
 
     status()
+
+    # Force python to wait for futures to return in non-interactive sessions.
+    _ = [_.exception() for _ in futures.values()]

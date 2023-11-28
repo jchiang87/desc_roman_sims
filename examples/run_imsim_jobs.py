@@ -1,11 +1,13 @@
+import sys
+
 from desc_roman_sims import GalSimJobGenerator
 from desc_roman_sims.parsl.parsl_config import load_wq_config
 
-load_wq_config(memory=10000)
+load_wq_config(memory=12000, port=9232, monitor=False)
 
 imsim_yaml = "/home/jchiang/RomanDESC/imsim-parsl-template.yaml"
-visits = [740000]
-generator = GalSimJobGenerator(imsim_yaml, visits, nfiles=4,
+visits = [802625]
+generator = GalSimJobGenerator(imsim_yaml, visits, nfiles=4, GB_per_CCD=5,
                                det_num_start=90, det_num_end=98)
 futures = {}
 for index in range(generator.num_jobs):
@@ -18,4 +20,5 @@ def status():
 
 status()
 
-_ = [_.exception() for _ in futures.values()]
+if not hasattr(sys, 'ps1'):
+    _ = [_.exception() for _ in futures.values()]

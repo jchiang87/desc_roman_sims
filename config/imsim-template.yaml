@@ -12,6 +12,7 @@ input.sky_catalog:
 
 input.opsim_data.file_name: $os.environ.get("OPSIM_DB_FILE")
 input.opsim_data.visit: None
+input.opsim_data.disable_iers_downloads: True
 
 input.atm_psf.screen_size: 819.2
 input.atm_psf.save_file:
@@ -23,7 +24,7 @@ input.atm_psf.save_file:
       - { type: OpsimData, field: band }
 
 # disable checkpointing
-#input.checkpoint: ""
+input.checkpoint: ""
 
 #image.nobjects: 10
 image.random_seed: '@input.opsim_data.visit'

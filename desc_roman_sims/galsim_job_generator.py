@@ -72,6 +72,7 @@ class GalSimJobGenerator:
         # memory has units of MB.
         resource_spec = dict(memory=self.GB_per_CCD*1024*self.nproc,
                              cores=1, disk=0)
+        print(run_name, resource_spec, flush=True)
         def bash_command(inputs=(), stderr=stderr, stdout=stdout,
                          parsl_resource_specification=resource_spec):
             return command

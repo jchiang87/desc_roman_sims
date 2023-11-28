@@ -36,7 +36,8 @@ def local_provider(nodes_per_block=1):
     return LocalProvider(**provider_options)
 
 
-def load_wq_config(memory=182000, port=9000, hub_port=None,
+
+def load_wq_config(memory=182000, port=9001, hub_port=None,
                    monitor=True, monitoring_interval=3*60):
     provider = local_provider()
     worker_options = f"--memory={memory}"
