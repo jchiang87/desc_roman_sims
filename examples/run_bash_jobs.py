@@ -23,6 +23,7 @@ class BashJobGenerator:
             index = self._counter
             self._counter += 1
         index %= len(self.commands)
+
         def bash_command(inputs=(), stderr=stderr, stdout=stdout):
             return self.commands[index]
         bash_command.__name__ = self.commands[index]

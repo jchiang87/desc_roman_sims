@@ -14,9 +14,11 @@ for index in range(generator.num_jobs):
     job_future = generator.get_job_future()
     futures[job_future.task_def['func_name']] = job_future
 
+
 def status():
     for func_name, future in futures.items():
         print(func_name, future.task_status())
+
 
 status()
 
