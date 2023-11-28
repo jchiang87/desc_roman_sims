@@ -1,0 +1,35 @@
+modules:
+    - imsim
+template: imsim-config-skycat
+
+# Restrict to galaxies to avoid bright stars
+input.sky_catalog.obj_types: [galaxy]
+
+# Disable the atmospheric PSF to run faster for testing.
+input.atm_psf: ""
+psf:
+    type: Convolve
+    items:
+        -
+           type: Gaussian
+           fwhm: 0.8
+        -
+           type: Gaussian
+           fwhm: 0.3
+
+# Turn off check pointing for this example.
+input.checkpoint: ""
+
+input.sky_catalog.file_name: /home/jchiang/dev/imSim/tests/data/sky_cat_9683.yaml
+input.opsim_data.file_name: /home/jchiang/dev/imSim/tests/data/small_opsim_9683.db
+input.opsim_data.visit: 449053
+input.opsim_data.disable_iers_downloads: True
+input.tree_rings.only_dets: [R22_S11, R22_S12]
+image.nobjects: 3
+
+output.dir: /home/jchiang/work/DESC/desc_roman_sims/work/output
+output.det_num.first: 0
+output.nproc: 1
+output.nfiles: 1
+
+image.random_seed: '@input.opsim_data.visit'

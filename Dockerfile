@@ -30,9 +30,23 @@ RUN source /opt/lsst/software/stack/loadLSST.bash &&\
     python3 -m pip install skyCatalogs/ &&\
     python3 -m pip install imSim/
 
+# Install parsl, ndcctools, and their deps explicitly to avoid
+# conflicts with lsst_distrib versions.
+RUN source /opt/lsst/software/stack/loadLSST.bash &&\
+    setup lsst_apps &&\
+    pip install -U --no-deps 'parsl[monitoring,workqueue]' &&\
+    pip install typeguard &&\
+    pip install tblib &&\
+    pip install paramiko &&\
+    pip install dill &&\
+    pip install globus-sdk &&\
+    pip install sqlalchemy_utils &&\
+    pip install flask_sqlalchemy &&\
+    conda install -c conda-forge ndcctools=7.6.1=py311h689c632_0 --no-deps
+
 WORKDIR /opt/lsst/software/stack
 
-# Download Rubin Sim data.
+# Download rubin_sim data.
 RUN mkdir -p rubin_sim_data/sims_sed_library
 RUN curl https://s3df.slac.stanford.edu/groups/rubin/static/sim-data/rubin_sim_data/skybrightness_may_2021.tgz | tar -C rubin_sim_data -xz
 RUN curl https://s3df.slac.stanford.edu/groups/rubin/static/sim-data/rubin_sim_data/throughputs_2023_09_07.tgz | tar -C rubin_sim_data -xz
