@@ -1,4 +1,3 @@
-import logging
 import parsl
 from parsl.addresses import address_by_hostname
 from parsl.config import Config
@@ -37,19 +36,22 @@ def local_provider(nodes_per_block=1):
     return LocalProvider(**provider_options)
 
 
-def load_wq_config(memory=182000, port=9000, hub_port=None):
+def load_wq_config(memory=182000, port=9000, hub_port=None,
+                   monitor=True, monitoring_interval=3*60):
     provider = local_provider()
     worker_options = f"--memory={memory}"
     executors = [work_queue_executor(worker_options=worker_options,
                                      port=port,
                                      provider=provider),
                  local_executor]
-    config = Config(
-        executors=executors,
-        monitoring=MonitoringHub(
+    if monitor:
+        monitoring = MonitoringHub(
             hub_address=address_by_hostname(),
             hub_port=hub_port,
-            resource_monitoring_interval=3*60,
-        )
-    )
+            resource_monitoring_interval=monitoring_interval)
+    else:
+        monitoring = None
+
+    config = Config(executors=executors, monitoring=monitoring)
+
     return parsl.load(config)
