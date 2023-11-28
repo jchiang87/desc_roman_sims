@@ -2,7 +2,8 @@ import os
 import parsl
 from desc_roman_sims.parsl.parsl_config import load_wq_config
 
-load_wq_config(memory=4000)
+
+load_wq_config(memory=4000, monitor=False)
 
 
 _COMMANDS = ("ls", "time", "uname", "galsim --version", "pwd")
@@ -22,6 +23,7 @@ class BashJobGenerator:
             index = self._counter
             self._counter += 1
         index %= len(self.commands)
+
         def bash_command(inputs=(), stderr=stderr, stdout=stdout):
             return self.commands[index]
         bash_command.__name__ = self.commands[index]
@@ -45,3 +47,6 @@ if __name__ == '__main__':
             print(func_name, future.task_status())
 
     status()
+
+    # Force python to wait for futures to return in non-interactive sessions.
+    _ = [_.exception() for _ in futures.values()]
