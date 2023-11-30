@@ -43,21 +43,21 @@ class GalSimJobGenerator:
         Use `galsim {self.imsim_yaml} output.nfiles=0` to generate the atm
         psf file.
         """
-        run_name = f"{visit}_psf"
-        stderr = os.path.join(self.log_dir, run_name + ".log")
+        job_name = f"{visit}_psf"
+        stderr = os.path.join(self.log_dir, job_name + ".log")
         stdout = stderr
-
-        command = (f"time galsim -v 2 {self.imsim_yaml} output.nfiles=0 "
-                   f"input.opsim_data.visit={visit}")
         resource_spec = dict(memory=self.GB_per_PSF*1024, cores=1, disk=0)
 
         def psf_command(command_line, inputs=(), stderr=None, stdout=None,
                         parsl_resource_specification=resource_spec):
             return command_line
-        psf_command.__name__ = run_name
+        psf_command.__name__ = job_name
 
         get_future = wq_bash_app(psf_command)
-        return get_future(command, inputs=(), stderr=stderr, stdout=stdout)
+
+        command = (f"time galsim -v 2 {self.imsim_yaml} output.nfiles=0 "
+                   f"input.opsim_data.visit={visit}")
+        return get_future(command, stderr=stderr, stdout=stdout)
 
     @property
     def num_jobs(self):
@@ -85,10 +85,25 @@ class GalSimJobGenerator:
         psf_future = self._psf_futures[current_visit]
         det_start = self._det_num_first
         det_end = min(det_start + self.nfiles - 1, self.det_num_end)
-        run_name = f"{current_visit:08d}_{det_start:03d}_{det_end:03d}"
+        job_name = f"{current_visit:08d}_{det_start:03d}_{det_end:03d}"
 
-        stderr = os.path.join(self.log_dir, run_name + ".log")
+        stderr = os.path.join(self.log_dir, job_name + ".log")
         stdout = stderr
+
+        # Expected resource usage per galsim instance.  Parsl assumes
+        # memory has units of MB.
+        resource_spec = dict(memory=self.GB_per_CCD*1024*self.nproc,
+                             cores=1, disk=0)
+        print(job_name, resource_spec, flush=True)
+
+        def bash_command(command_line, inputs=(), stderr=None, stdout=None,
+                         parsl_resource_specification=resource_spec):
+            return command_line
+        bash_command.__name__ = job_name
+
+        # The wrapped bash_app function returns a python future when
+        # called.
+        get_future = wq_bash_app(bash_command)
 
         nfiles = det_end - det_start + 1
         nproc = min(nfiles, self.nproc)
@@ -97,21 +112,6 @@ class GalSimJobGenerator:
                    f"output.nfiles={nfiles} "
                    f"output.nproc={nproc} "
                    f"output.det_num.first={self._det_num_first}")
-
-        # Expected resource usage per galsim instance.  Parsl assumes
-        # memory has units of MB.
-        resource_spec = dict(memory=self.GB_per_CCD*1024*self.nproc,
-                             cores=1, disk=0)
-        print(run_name, resource_spec, flush=True)
-
-        def bash_command(command_line, inputs=(), stderr=None, stdout=None,
-                         parsl_resource_specification=resource_spec):
-            return command_line
-        bash_command.__name__ = run_name
-
-        # The wrapped bash_app function returns a python future when
-        # called.
-        get_future = wq_bash_app(bash_command)
 
         self._det_num_first += self.nfiles
         self._launched_jobs += 1
