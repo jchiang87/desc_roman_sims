@@ -47,7 +47,8 @@ class GalSimJobGenerator:
         stderr = os.path.join(self.log_dir, run_name + ".log")
         stdout = stderr
 
-        command = f"galsim -v 0 {self.imsim_yaml} output.nfiles=0"
+        command = (f"galsim -v 2 {self.imsim_yaml} output.nfiles=0 "
+                   f"input.opsim_data.visit={visit}")
         resource_spec = dict(memory=self.GB_per_PSF*1024, cores=1, disk=0)
 
         def psf_command(command_line, inputs=(), stderr=None, stdout=None,
