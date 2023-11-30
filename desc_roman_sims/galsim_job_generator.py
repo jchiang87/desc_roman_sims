@@ -11,7 +11,7 @@ wq_bash_app = parsl.bash_app(executors=['work_queue'],
 
 class GalSimJobGenerator:
     def __init__(self, imsim_yaml, visits, nfiles=10, nproc=1,
-                 det_num_start=0, det_num_end=188, GB_per_CCD=6, GB_per_PSF=6,
+                 det_num_start=0, det_num_end=188, GB_per_CCD=6, GB_per_PSF=8,
                  verbosity=2, log_dir="logging"):
 
         # The following line ensures that all processes associated with
@@ -47,7 +47,7 @@ class GalSimJobGenerator:
         stderr = os.path.join(self.log_dir, run_name + ".log")
         stdout = stderr
 
-        command = (f"galsim -v 2 {self.imsim_yaml} output.nfiles=0 "
+        command = (f"time galsim -v 2 {self.imsim_yaml} output.nfiles=0 "
                    f"input.opsim_data.visit={visit}")
         resource_spec = dict(memory=self.GB_per_PSF*1024, cores=1, disk=0)
 
