@@ -1,5 +1,8 @@
 import os
+import glob
+from collections import defaultdict
 import parsl
+from galsim.main import ReadConfig
 
 
 __all__ = ['GalSimJobGenerator']
@@ -12,7 +15,7 @@ wq_bash_app = parsl.bash_app(executors=['work_queue'],
 class GalSimJobGenerator:
     def __init__(self, imsim_yaml, visits, nfiles=10, nproc=1,
                  det_num_start=0, det_num_end=188, GB_per_CCD=6, GB_per_PSF=8,
-                 verbosity=2, log_dir="logging"):
+                 verbosity=2, log_dir="logging", clean_up_atm_psfs=True):
 
         # The following line ensures that all processes associated with
         # a galsim instance are occupied to start.
@@ -20,6 +23,8 @@ class GalSimJobGenerator:
         assert det_num_start < det_num_end
 
         self.imsim_yaml = imsim_yaml
+        self.atm_psf_dir = os.path.dirname(
+            ReadConfig(imsim_yaml)[0]['input.atm_psf.save_file']['format'])
         self.visits = visits
         self.nfiles = nfiles
         self.nproc = nproc
@@ -30,6 +35,7 @@ class GalSimJobGenerator:
         self.verbosity = verbosity
         self.log_dir = log_dir
         os.makedirs(self.log_dir, exist_ok=True)
+        self.clean_up_atm_psfs = clean_up_atm_psfs
 
         self._visit_index = 0
         self._det_num_first = det_num_start
@@ -37,6 +43,8 @@ class GalSimJobGenerator:
         self._num_jobs = None
 
         self._psf_futures = {}
+        self._ccd_futures = defaultdict(list)
+        self._rm_atm_psf_futures = []
 
     def get_atm_psf_future(self, visit):
         """
@@ -74,10 +82,31 @@ class GalSimJobGenerator:
             return None
 
         if self._det_num_first > self.det_num_end:
+            handled_visit = self.visits[self._visit_index]
+
+            if self.clean_up_atm_psfs:
+                # Create a python_app that removes the atm_psf file
+                # for the just-handled visit after the futures for
+                # each CCD in that visit have finished rendering.
+                @parsl.python_app(executors=['submit-node'])
+                def remove_atm_psf(visit, inputs=()):
+                    atm_psf_file = glob.glob(
+                        os.path.join(self.atm_psf_dir, f"*{visit}*.pkl"))[0]
+                    print("deleting", atm_psf_file, flush=True)
+                    os.remove(atm_psf_file)
+
+                remove_atm_psf.__name__ = f"rm_atm_psf_{handled_visit}"
+                self._rm_atm_psf_futures.append(
+                    remove_atm_psf(handled_visit,
+                                   inputs=self._ccd_futures[handled_visit]))
+
             self._visit_index += 1
             self._det_num_first = self.det_num_start
 
-        current_visit = self.visits[self._visit_index]
+        try:
+            current_visit = self.visits[self._visit_index]
+        except IndexError:
+            return None
 
         if current_visit not in self._psf_futures:
             self._psf_futures[current_visit] \
@@ -116,5 +145,22 @@ class GalSimJobGenerator:
         self._det_num_first += self.nfiles
         self._launched_jobs += 1
 
-        return get_future(command, inputs=[psf_future], stderr=stderr,
-                          stdout=stdout)
+        ccd_future = get_future(command, inputs=[psf_future], stderr=stderr,
+                                stdout=stdout)
+        self._ccd_futures[current_visit].append(ccd_future)
+        return ccd_future
+
+    def run(self, block=True):
+        ccd_futures = []
+        print("Generating CCD job futures...", flush=True)
+        for index in range(self.num_jobs + 1):
+            ccd_future = self.get_job_future()
+            if ccd_future is not None:
+                ccd_futures.append(ccd_future)
+
+        if block:
+            if self._rm_atm_psf_futures:
+                print("Waiting for clean-up futures.", flush=True)
+                _ = [_.exception() for _ in self._rm_atm_psf_futures]
+            else:
+                _ = [_.exception() for _ in ccd_futures]
