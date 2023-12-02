@@ -63,7 +63,8 @@ class GalSimJobGenerator:
             # prerequisite futures.
             return []
         job_name = f"{visit}_psf"
-        stderr = os.path.join(self.log_dir, job_name + ".log")
+        # Write stderr, stdout to log file in append mode.
+        stderr = (os.path.join(self.log_dir, job_name + ".log"), 'a')
         stdout = stderr
         resource_spec = dict(memory=self.GB_per_PSF*1024, cores=1, disk=0)
 
@@ -126,7 +127,8 @@ class GalSimJobGenerator:
         det_end = min(det_start + self.nfiles - 1, self.det_num_end)
         job_name = f"{current_visit:08d}_{det_start:03d}_{det_end:03d}"
 
-        stderr = os.path.join(self.log_dir, job_name + ".log")
+        # Write stderr, stdout to log file in append mode.
+        stderr = (os.path.join(self.log_dir, job_name + ".log"), 'a')
         stdout = stderr
 
         # Expected resource usage per galsim instance.  Parsl assumes
