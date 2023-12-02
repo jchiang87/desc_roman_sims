@@ -46,11 +46,22 @@ class GalSimJobGenerator:
         self._ccd_futures = defaultdict(list)
         self._rm_atm_psf_futures = []
 
+    def find_psf_file(self, visit):
+        psf_files = glob.glob(os.path.join(self.atm_psf_dir, f"*{visit}*.pkl"))
+        if psf_files:
+            return psf_files[0]
+        else:
+            return None
+
     def get_atm_psf_future(self, visit):
         """
         Use `galsim {self.imsim_yaml} output.nfiles=0` to generate the atm
         psf file.
         """
+        if self.find_psf_file(visit) is not None:
+            # atm_psf_file already exists, so return an empty list of
+            # prerequisite futures.
+            return []
         job_name = f"{visit}_psf"
         stderr = os.path.join(self.log_dir, job_name + ".log")
         stdout = stderr
@@ -65,7 +76,7 @@ class GalSimJobGenerator:
 
         command = (f"time galsim -v 2 {self.imsim_yaml} output.nfiles=0 "
                    f"input.opsim_data.visit={visit}")
-        return get_future(command, stderr=stderr, stdout=stdout)
+        return [get_future(command, stderr=stderr, stdout=stdout)]
 
     @property
     def num_jobs(self):
@@ -90,8 +101,7 @@ class GalSimJobGenerator:
                 # each CCD in that visit have finished rendering.
                 @parsl.python_app(executors=['submit-node'])
                 def remove_atm_psf(visit, inputs=()):
-                    atm_psf_file = glob.glob(
-                        os.path.join(self.atm_psf_dir, f"*{visit}*.pkl"))[0]
+                    atm_psf_file = self.find_psf_file(visit)
                     print("deleting", atm_psf_file, flush=True)
                     os.remove(atm_psf_file)
 
@@ -111,7 +121,7 @@ class GalSimJobGenerator:
         if current_visit not in self._psf_futures:
             self._psf_futures[current_visit] \
                 = self.get_atm_psf_future(current_visit)
-        psf_future = self._psf_futures[current_visit]
+        psf_futures = self._psf_futures[current_visit]
         det_start = self._det_num_first
         det_end = min(det_start + self.nfiles - 1, self.det_num_end)
         job_name = f"{current_visit:08d}_{det_start:03d}_{det_end:03d}"
@@ -145,7 +155,7 @@ class GalSimJobGenerator:
         self._det_num_first += self.nfiles
         self._launched_jobs += 1
 
-        ccd_future = get_future(command, inputs=[psf_future], stderr=stderr,
+        ccd_future = get_future(command, inputs=psf_futures, stderr=stderr,
                                 stdout=stdout)
         self._ccd_futures[current_visit].append(ccd_future)
         return ccd_future
