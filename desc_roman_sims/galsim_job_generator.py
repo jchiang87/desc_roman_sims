@@ -14,37 +14,61 @@ wq_bash_app = parsl.bash_app(executors=['work_queue'],
 
 class GalSimJobGenerator:
     def __init__(self, imsim_yaml, visits, nfiles=10, nproc=1,
-                 det_num_start=0, det_num_end=188, GB_per_CCD=6, GB_per_PSF=8,
+                 default_det_list=None, GB_per_CCD=6, GB_per_PSF=8,
                  verbosity=2, log_dir="logging", clean_up_atm_psfs=True):
 
         # The following line ensures that all processes associated with
         # a galsim instance are occupied to start.
         assert nfiles >= nproc
-        assert det_num_start < det_num_end
 
         self.imsim_yaml = imsim_yaml
-        self.atm_psf_dir = os.path.dirname(
-            ReadConfig(imsim_yaml)[0]['input.atm_psf.save_file']['format'])
+        config = ReadConfig(imsim_yaml)[0]
+
+        self.output_dir_format = config['output.dir']['format']
+
+        self.atm_psf_dir \
+            = os.path.dirname(config['input.atm_psf.save_file']['format'])
+        os.makedirs(self.atm_psf_dir, exist_ok=True)
+        self.clean_up_atm_psfs = clean_up_atm_psfs
+
         self.visits = visits
         self.nfiles = nfiles
         self.nproc = nproc
-        self.det_num_start = det_num_start
-        self.det_num_end = det_num_end
+
+        if default_det_list is None:
+            self.target_dets = set(range(189))
+        else:
+            self.target_dets = set(default_det_list)
+        self._assemble_det_lists()
+
         self.GB_per_CCD = GB_per_CCD
         self.GB_per_PSF = GB_per_PSF
         self.verbosity = verbosity
         self.log_dir = log_dir
         os.makedirs(self.log_dir, exist_ok=True)
-        self.clean_up_atm_psfs = clean_up_atm_psfs
 
         self._visit_index = 0
-        self._det_num_first = det_num_start
+        self.current_visit = self.visits[self._visit_index]
         self._launched_jobs = 0
-        self._num_jobs = None
+        self._det_index = 0
 
         self._psf_futures = {}
         self._ccd_futures = defaultdict(list)
         self._rm_atm_psf_futures = []
+
+    def _assemble_det_lists(self):
+        self._det_lists = {}
+        for visit in self.visits:
+            output_dir = self.output_dir_format % visit
+            raw_files = glob.glob(os.path.join(output_dir, 'amp*'))
+            finished_dets = []
+            for item in raw_files:
+                basename = os.path.basename(item)
+                index = basename.find('det')
+                finished_dets.append(int(basename[index+3:index+6]))
+                self._det_lists[visit] \
+                    = sorted(self.target_dets.difference(finished_dets))
+        self.num_jobs = sum([len(_) for _ in self._det_lists.values()])
 
     def find_psf_file(self, visit):
         psf_files = glob.glob(os.path.join(self.atm_psf_dir, f"*{visit}*.pkl"))
@@ -79,22 +103,12 @@ class GalSimJobGenerator:
                    f"input.opsim_data.visit={visit}")
         return [get_future(command, stderr=stderr, stdout=stdout)]
 
-    @property
-    def num_jobs(self):
-        if self._num_jobs is None:
-            num_dets = self.det_num_end - self.det_num_start + 1
-            jobs_per_visit = num_dets // self.nfiles
-            if jobs_per_visit*self.nfiles < num_dets:
-                jobs_per_visit += 1
-            self._num_jobs = len(self.visits)*jobs_per_visit
-        return self._num_jobs
-
     def get_job_future(self):
         if self._launched_jobs > self.num_jobs:
             return None
 
-        if self._det_num_first > self.det_num_end:
-            handled_visit = self.visits[self._visit_index]
+        if self._det_index >= len(self._det_lists[self.current_visit]):
+            handled_visit = self.current_visit
 
             if self.clean_up_atm_psfs:
                 # Create a python_app that removes the atm_psf file
@@ -112,20 +126,21 @@ class GalSimJobGenerator:
                                    inputs=self._ccd_futures[handled_visit]))
 
             self._visit_index += 1
-            self._det_num_first = self.det_num_start
+            try:
+                self.current_visit = self.visits[self._visit_index]
+            except IndexError:
+                return None
+            self._det_index = 0
 
-        try:
-            current_visit = self.visits[self._visit_index]
-        except IndexError:
-            return None
-
-        if current_visit not in self._psf_futures:
-            self._psf_futures[current_visit] \
-                = self.get_atm_psf_future(current_visit)
-        psf_futures = self._psf_futures[current_visit]
-        det_start = self._det_num_first
-        det_end = min(det_start + self.nfiles - 1, self.det_num_end)
-        job_name = f"{current_visit:08d}_{det_start:03d}_{det_end:03d}"
+        if self.current_visit not in self._psf_futures:
+            self._psf_futures[self.current_visit] \
+                = self.get_atm_psf_future(self.current_visit)
+        psf_futures = self._psf_futures[self.current_visit]
+        det_list = self._det_lists[self.current_visit]
+        det_start = det_list[self._det_index]
+        det_end_index = min(self._det_index + self.nfiles, len(det_list)) - 1
+        det_end = det_list[det_end_index]
+        job_name = f"{self.current_visit:08d}_{det_start:03d}_{det_end:03d}"
 
         # Write stderr, stdout to log file in append mode.
         stderr = (os.path.join(self.log_dir, job_name + ".log"), 'a')
@@ -146,20 +161,24 @@ class GalSimJobGenerator:
         # called.
         get_future = wq_bash_app(bash_command)
 
-        nfiles = det_end - det_start + 1
+        nfiles = det_end_index - self._det_index + 1
         nproc = min(nfiles, self.nproc)
+        my_det_list = ("[" +
+                       ", ".join([str(_) for _ in
+                                  det_list[self._det_index:det_end_index + 1]])
+                       + "]")
         command = (f"galsim -v {self.verbosity} {self.imsim_yaml} "
-                   f"input.opsim_data.visit={current_visit} "
+                   f"input.opsim_data.visit={self.current_visit} "
                    f"output.nfiles={nfiles} "
                    f"output.nproc={nproc} "
-                   f"output.det_num.first={self._det_num_first}")
+                   "output.det_num='{type: List, items: " + my_det_list + "}'")
 
-        self._det_num_first += self.nfiles
+        self._det_index += self.nfiles
         self._launched_jobs += 1
 
         ccd_future = get_future(command, inputs=psf_futures, stderr=stderr,
                                 stdout=stdout)
-        self._ccd_futures[current_visit].append(ccd_future)
+        self._ccd_futures[self.current_visit].append(ccd_future)
         return ccd_future
 
     def run(self, block=True):
