@@ -66,8 +66,8 @@ class GalSimJobGenerator:
                 basename = os.path.basename(item)
                 index = basename.find('det')
                 finished_dets.append(int(basename[index+3:index+6]))
-                self._det_lists[visit] \
-                    = sorted(self.target_dets.difference(finished_dets))
+            self._det_lists[visit] \
+                = sorted(self.target_dets.difference(finished_dets))
         self.num_jobs = sum([len(_) for _ in self._det_lists.values()])
 
     def find_psf_file(self, visit):
