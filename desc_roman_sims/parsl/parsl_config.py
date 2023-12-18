@@ -35,14 +35,17 @@ def local_provider(nodes_per_block=1):
 
 def load_wq_config(memory=182000, port=9001, hub_port=None,
                    monitor=True, monitoring_interval=3*60,
-                   max_threads=1):
-    provider = local_provider()
-    worker_options = f"--memory={memory}"
-    executors = [work_queue_executor(worker_options=worker_options,
-                                     port=port,
-                                     provider=provider),
-                 ThreadPoolExecutor(max_threads=max_threads,
-                                    label="thread_pool")
+                   max_threads=1, use_work_queue=True):
+    executors = [ThreadPoolExecutor(max_threads=max_threads,
+                                    label="thread_pool")]
+
+    if use_work_queue:
+        provider = local_provider()
+        worker_options = f"--memory={memory}"
+        executors.append(work_queue_executor(worker_options=worker_options,
+                                             port=port,
+                                             provider=provider))
+
     if monitor:
         monitoring = MonitoringHub(
             hub_address=address_by_hostname(),
