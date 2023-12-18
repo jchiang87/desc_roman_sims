@@ -9,9 +9,6 @@ from parsl.providers import LocalProvider
 __all__ = ["load_wq_config"]
 
 
-local_executor = ThreadPoolExecutor(max_threads=4, label="submit-node")
-
-
 def work_queue_executor(label="work_queue",
                         worker_options="--memory=192000",  # Theta KNL max (MB)
                         port=9000,
@@ -36,15 +33,16 @@ def local_provider(nodes_per_block=1):
     return LocalProvider(**provider_options)
 
 
-
 def load_wq_config(memory=182000, port=9001, hub_port=None,
-                   monitor=True, monitoring_interval=3*60):
+                   monitor=True, monitoring_interval=3*60,
+                   max_threads=1):
     provider = local_provider()
     worker_options = f"--memory={memory}"
     executors = [work_queue_executor(worker_options=worker_options,
                                      port=port,
                                      provider=provider),
-                 local_executor]
+                 ThreadPoolExecutor(max_threads=max_threads,
+                                    label="thread_pool")
     if monitor:
         monitoring = MonitoringHub(
             hub_address=address_by_hostname(),
