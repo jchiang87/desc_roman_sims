@@ -7,6 +7,6 @@ imsim_yaml = "/home/jchiang/RomanDESC/imsim-parsl-template.yaml"
 visits = [802625]
 generator = GalSimJobGenerator(imsim_yaml, visits,
                                nfiles=4, GB_per_CCD=5,
-                               det_num_start=90, det_num_end=98,
-                               clean_up_atm_psfs=True)
+                               default_det_list=list(range(90, 99)),
+                               clean_up_atm_psfs=False)
 generator.run()
