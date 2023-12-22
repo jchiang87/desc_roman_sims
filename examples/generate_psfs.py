@@ -9,7 +9,6 @@ generator = GalSimJobGenerator(imsim_yaml, visits,
                                nfiles=4, GB_per_CCD=5,
                                GB_per_PSF=8,
                                clean_up_atm_psfs=False)
-#generator.run()
 
 psf_visits = [38064, 38065, 38066]
 atm_psf_futures = []
