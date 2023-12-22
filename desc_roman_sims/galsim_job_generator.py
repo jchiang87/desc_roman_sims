@@ -8,14 +8,11 @@ from galsim.main import ReadConfig
 __all__ = ['GalSimJobGenerator']
 
 
-wq_bash_app = parsl.bash_app(executors=['work_queue'],
-                             cache=True, ignore_for_cache=['stderr', 'stdout'])
-
-
 class GalSimJobGenerator:
     def __init__(self, imsim_yaml, visits, nfiles=10, nproc=1,
                  default_det_list=None, GB_per_CCD=6, GB_per_PSF=8,
-                 verbosity=2, log_dir="logging", clean_up_atm_psfs=True):
+                 verbosity=2, log_dir="logging", clean_up_atm_psfs=True,
+                 bash_app_executor='work_queue'):
 
         # The following line ensures that all processes associated with
         # a galsim instance are occupied to start.
@@ -46,6 +43,11 @@ class GalSimJobGenerator:
         self.verbosity = verbosity
         self.log_dir = log_dir
         os.makedirs(self.log_dir, exist_ok=True)
+
+        self.bash_app_executor = bash_app_executor
+        self.bash_app = parsl.bash_app(executors=[bash_app_executor],
+                                       cache=True,
+                                       ignore_for_cache=['stderr', 'stdout'])
 
         self._visit_index = 0
         self.current_visit = self.visits[self._visit_index]
@@ -90,14 +92,20 @@ class GalSimJobGenerator:
         # Write stderr, stdout to log file in append mode.
         stderr = (os.path.join(self.log_dir, job_name + ".log"), 'a')
         stdout = stderr
-        resource_spec = dict(memory=self.GB_per_PSF*1024, cores=1, disk=0)
 
-        def psf_command(command_line, inputs=(), stderr=None, stdout=None,
-                        parsl_resource_specification=resource_spec):
-            return command_line
+        if self.bash_app_executor == "work_queue":
+            resource_spec = dict(memory=self.GB_per_PSF*1024, cores=1, disk=0)
+
+            def psf_command(command_line, inputs=(), stderr=None, stdout=None,
+                            parsl_resource_specification=resource_spec):
+                return command_line
+        else:
+
+            def psf_command(command_line, inputs=(), stderr=None, stdout=None):
+                return command_line
         psf_command.__name__ = job_name
 
-        get_future = wq_bash_app(psf_command)
+        get_future = self.bash_app(psf_command)
 
         command = (f"time galsim -v 2 {self.imsim_yaml} output.nfiles=0 "
                    f"input.opsim_data.visit={visit}")
@@ -114,7 +122,7 @@ class GalSimJobGenerator:
                 # Create a python_app that removes the atm_psf file
                 # for the just-handled visit after the futures for
                 # each CCD in that visit have finished rendering.
-                @parsl.python_app(executors=['submit-node'])
+                @parsl.python_app(executors=['thread_pool'])
                 def remove_atm_psf(visit, inputs=()):
                     atm_psf_file = self.find_psf_file(visit)
                     print("deleting", atm_psf_file, flush=True)
@@ -146,20 +154,25 @@ class GalSimJobGenerator:
         stderr = (os.path.join(self.log_dir, job_name + ".log"), 'a')
         stdout = stderr
 
-        # Expected resource usage per galsim instance.  Parsl assumes
-        # memory has units of MB.
-        resource_spec = dict(memory=self.GB_per_CCD*1024*self.nproc,
-                             cores=1, disk=0)
-        print(job_name, resource_spec, flush=True)
+        if self.bash_app_executor == "work_queue":
+            # Expected resource usage per galsim instance.  Parsl assumes
+            # memory has units of MB.
+            resource_spec = dict(memory=self.GB_per_CCD*1024*self.nproc,
+                                 cores=1, disk=0)
+            print(job_name, resource_spec, flush=True)
 
-        def bash_command(command_line, inputs=(), stderr=None, stdout=None,
-                         parsl_resource_specification=resource_spec):
-            return command_line
+            def bash_command(command_line, inputs=(), stderr=None, stdout=None,
+                             parsl_resource_specification=resource_spec):
+                return command_line
+        else:
+
+            def bash_command(command_line, inputs=(), stderr=None, stdout=None):
+                return command_line
         bash_command.__name__ = job_name
 
         # The wrapped bash_app function returns a python future when
         # called.
-        get_future = wq_bash_app(bash_command)
+        get_future = self.bash_app(bash_command)
 
         nfiles = det_end_index - self._det_index + 1
         nproc = min(nfiles, self.nproc)
