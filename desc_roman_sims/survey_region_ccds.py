@@ -17,7 +17,7 @@ from imsim import load_telescope, BatoidWCSBuilder, get_camera
 
 
 __all__ = ['ignore_erfa_warnings', 'SurveyRegion', 'CcdRegionFactory',
-           'lonlat']
+           'lonlat', 'CcdFinder']
 
 
 def ignore_erfa_warnings(func):
@@ -214,6 +214,27 @@ class OpSimData:
 
     def __len__(self):
         return len(self.df)
+
+
+class CcdFinder:
+    def __init__(self, ra0, dec0, radius, opsim_db_file, query_conditions=None):
+        self.sky_coord = galsim.CelestialCoord(ra0*galsim.degrees,
+                                               dec0*galsim.degrees)
+        self.radius = radius*galsim.degrees
+        self.opsim_data = OpSimData(opsim_db_file,
+                                    query_conditions=query_conditions)
+
+    def find_ccds(self, visit):
+        obs_info = self.opsim_data.obs_info(visit)
+        factory = CcdRegionFactory(*obs_info)
+        ccds = []
+        for det in factory.camera:
+            if det.getType() != cameraGeom.DetectorType.SCIENCE:
+                continue
+            wcs = factory.factory.getWCS(det)
+            if self.sky_coord.distanceTo(wcs.center) < self.radius:
+                ccds.append(det.getName())
+        return ccds, obs_info
 
 
 if __name__ == '__main__':
