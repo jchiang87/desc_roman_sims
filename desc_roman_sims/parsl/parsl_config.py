@@ -35,7 +35,8 @@ def local_provider(nodes_per_block=1):
 
 def load_wq_config(memory=182000, port=9001, hub_port=None,
                    monitor=True, monitoring_interval=3*60,
-                   max_threads=1, use_work_queue=True):
+                   max_threads=1, use_work_queue=True,
+                   run_dir='runinfo'):
     executors = [ThreadPoolExecutor(max_threads=max(1, max_threads),
                                     label="thread_pool")]
 
@@ -54,6 +55,7 @@ def load_wq_config(memory=182000, port=9001, hub_port=None,
     else:
         monitoring = None
 
-    config = Config(executors=executors, monitoring=monitoring)
+    config = Config(executors=executors, monitoring=monitoring,
+                    run_dir=run_dir)
 
     return parsl.load(config)
