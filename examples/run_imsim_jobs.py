@@ -1,9 +1,11 @@
+import os
 import socket
 from desc_roman_sims import GalSimJobGenerator
 from desc_roman_sims.parsl.parsl_config import load_wq_config
 
 hostname = socket.gethostname()
-run_dir = f'runinfo/{hostname}'
+username = os.getlogin()
+run_dir = f'runinfo/{hostname}_{username}'
 load_wq_config(memory=17000, port=9122, run_dir=run_dir)
 
 imsim_yaml = "/home/jchiang/RomanDESC/imsim-parsl-template.yaml"
