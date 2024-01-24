@@ -10,7 +10,7 @@ __all__ = ['GalSimJobGenerator']
 
 class GalSimJobGenerator:
     def __init__(self, imsim_yaml, visits, nfiles=10, nproc=1,
-                 default_det_list=None, GB_per_CCD=6, GB_per_PSF=8,
+                 target_dets=None, GB_per_CCD=6, GB_per_PSF=8,
                  verbosity=2, log_dir="logging", clean_up_atm_psfs=True,
                  bash_app_executor='work_queue'):
 
@@ -32,10 +32,10 @@ class GalSimJobGenerator:
         self.nfiles = nfiles
         self.nproc = nproc
 
-        if default_det_list is None:
-            self.target_dets = set(range(189))
+        if target_dets is None:
+            self.target_dets = {_: set(range(189)) for _ in visits}
         else:
-            self.target_dets = set(default_det_list)
+            self.target_dets = target_dets
         self._assemble_det_lists()
 
         self.GB_per_CCD = GB_per_CCD
@@ -68,8 +68,9 @@ class GalSimJobGenerator:
                 basename = os.path.basename(item)
                 index = basename.find('det')
                 finished_dets.append(int(basename[index+3:index+6]))
+            target_dets = self.target_dets.get(visit, set())
             self._det_lists[visit] \
-                = sorted(self.target_dets.difference(finished_dets))
+                = sorted(target_dets.difference(finished_dets))
         self.num_jobs = sum([len(_) for _ in self._det_lists.values()])
 
     def find_psf_file(self, visit):
@@ -145,6 +146,8 @@ class GalSimJobGenerator:
                 = self.get_atm_psf_future(self.current_visit)
         psf_futures = self._psf_futures[self.current_visit]
         det_list = self._det_lists[self.current_visit]
+        if not det_list:
+            return None
         det_start = det_list[self._det_index]
         det_end_index = min(self._det_index + self.nfiles, len(det_list)) - 1
         det_end = det_list[det_end_index]
