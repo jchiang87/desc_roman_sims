@@ -1,6 +1,7 @@
 import os
 import glob
 from collections import defaultdict
+import hashlib
 import parsl
 from galsim.main import ReadConfig
 
@@ -12,7 +13,7 @@ class GalSimJobGenerator:
     def __init__(self, imsim_yaml, visits, nfiles=10, nproc=1,
                  target_dets=None, GB_per_CCD=6, GB_per_PSF=8,
                  verbosity=2, log_dir="logging", clean_up_atm_psfs=True,
-                 bash_app_executor='work_queue'):
+                 bash_app_executor='work_queue', raw_prefix='amp'):
 
         # The following line ensures that all processes associated with
         # a galsim instance are occupied to start.
@@ -23,9 +24,13 @@ class GalSimJobGenerator:
 
         self.output_dir_format = config['output.dir']['format']
 
-        self.atm_psf_dir \
-            = os.path.dirname(config['input.atm_psf.save_file']['format'])
-        os.makedirs(self.atm_psf_dir, exist_ok=True)
+        try:
+            self.atm_psf_dir \
+                = os.path.dirname(config['input.atm_psf.save_file']['format'])
+        except KeyError:
+            self.atm_psf_dir = None
+        else:
+            os.makedirs(self.atm_psf_dir, exist_ok=True)
         self.clean_up_atm_psfs = clean_up_atm_psfs
 
         self.visits = visits
@@ -36,7 +41,7 @@ class GalSimJobGenerator:
             self.target_dets = {_: set(range(189)) for _ in visits}
         else:
             self.target_dets = target_dets
-        self._assemble_det_lists()
+        self._assemble_det_lists(raw_prefix=raw_prefix)
 
         self.GB_per_CCD = GB_per_CCD
         self.GB_per_PSF = GB_per_PSF
@@ -58,11 +63,11 @@ class GalSimJobGenerator:
         self._ccd_futures = defaultdict(list)
         self._rm_atm_psf_futures = []
 
-    def _assemble_det_lists(self):
+    def _assemble_det_lists(self, raw_prefix='amp'):
         self._det_lists = {}
         for visit in self.visits:
             output_dir = self.output_dir_format % visit
-            raw_files = glob.glob(os.path.join(output_dir, 'amp*'))
+            raw_files = glob.glob(os.path.join(output_dir, f'{raw_prefix}*'))
             finished_dets = []
             for item in raw_files:
                 basename = os.path.basename(item)
@@ -74,6 +79,8 @@ class GalSimJobGenerator:
         self.num_jobs = sum([len(_) for _ in self._det_lists.values()])
 
     def find_psf_file(self, visit):
+        if self.atm_psf_dir is None:
+            return None
         psf_files = glob.glob(os.path.join(self.atm_psf_dir, f"*{visit}*.pkl"))
         if psf_files:
             return psf_files[0]
@@ -85,9 +92,10 @@ class GalSimJobGenerator:
         Use `galsim {self.imsim_yaml} output.nfiles=0` to generate the atm
         psf file.
         """
-        if self.find_psf_file(visit) is not None:
-            # atm_psf_file already exists, so return an empty list of
-            # prerequisite futures.
+        if (self.find_psf_file(visit) is not None or
+            self.atm_psf_dir is None):
+            # atm_psf_file already exists or atm_psfs are not needed,
+            # so return an empty list of prerequisite futures.
             return []
         job_name = f"{visit}_psf"
         # Write stderr, stdout to log file in append mode.
@@ -111,6 +119,12 @@ class GalSimJobGenerator:
         command = (f"time galsim -v 2 {self.imsim_yaml} output.nfiles=0 "
                    f"input.opsim_data.visit={visit}")
         return [get_future(command, stderr=stderr, stdout=stdout)]
+
+    @staticmethod
+    def random_seed(visit, det_list):
+        my_string = f"{visit}{det_list}"
+        my_int = int(hashlib.sha256(my_string.encode('utf-8')).hexdigest(), 16)
+        return my_int % (2**32 - 1)
 
     def get_job_future(self):
         if self._launched_jobs > self.num_jobs:
@@ -188,6 +202,7 @@ class GalSimJobGenerator:
                    f"output.nfiles={nfiles} "
                    f"output.nproc={nproc} "
                    "output.det_num='{type: List, items: " + my_det_list + "}'")
+        print(command, flush=True)
 
         self._det_index += self.nfiles
         self._launched_jobs += 1
