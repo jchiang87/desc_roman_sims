@@ -140,8 +140,10 @@ class GalSimJobGenerator:
                 @parsl.python_app(executors=['thread_pool'])
                 def remove_atm_psf(visit, inputs=()):
                     atm_psf_file = self.find_psf_file(visit)
-                    print("deleting", atm_psf_file, flush=True)
-                    os.remove(atm_psf_file)
+                    if (atm_psf_file is not None and
+                        os.path.isfile(atm_psf_file)):
+                        print("deleting", atm_psf_file, flush=True)
+                        os.remove(atm_psf_file)
 
                 remove_atm_psf.__name__ = f"rm_atm_psf_{handled_visit}"
                 self._rm_atm_psf_futures.append(
